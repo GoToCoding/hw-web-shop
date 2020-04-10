@@ -1,0 +1,28 @@
+version: '2'
+services:
+    db:
+        image: postgres
+        environment:
+          POSTGRES_PASSWORD: postgresql
+        volumes:
+          - "appvolume:/var/lib/postgresql/data"
+        restart: unless-stopped
+    store_core:
+        build:
+            context: ./
+            dockerfile: ./store_core/Dockerfile
+        ports:
+            - "5000:5000"
+        depends_on:
+            - db
+    auth:
+        build:
+            context: ./
+            dockerfile: ./auth/Dockerfile
+        ports:
+            - "5010:5010"
+        depends_on:
+            - db
+
+volumes:
+    appvolume:
