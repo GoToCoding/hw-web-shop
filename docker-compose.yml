@@ -7,10 +7,20 @@ services:
         volumes:
           - "appvolume:/var/lib/postgresql/data"
         restart: unless-stopped
-    web:
-        build: .
+    store_core:
+        build:
+            context: ./
+            dockerfile: ./store_core/Dockerfile
         ports:
             - "5000:5000"
+        depends_on:
+            - db
+    auth:
+        build:
+            context: ./
+            dockerfile: ./auth/Dockerfile
+        ports:
+            - "5010:5010"
         depends_on:
             - db
 

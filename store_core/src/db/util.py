@@ -5,7 +5,7 @@ import psycopg2
 
 from ..models.product import Product
 
-ITEMS_TABLE_NAME = 'products_table'
+PRODUCTS_TABLE_NAME = 'products_table'
 
 class DB:
 
@@ -24,13 +24,16 @@ class DB:
             self.connection.autocommit = True
             self.cursor = self.connection.cursor()
 
+            # self.execute(f'''
+            #     DROP TABLE IF EXISTS {PRODUCTS_TABLE_NAME};
+            # ''')
+
             self.execute(f'''
-                CREATE TABLE IF NOT EXISTS {ITEMS_TABLE_NAME} (
+                CREATE TABLE IF NOT EXISTS {PRODUCTS_TABLE_NAME} (
                     product_id SERIAL PRIMARY KEY,
                     product_name varchar(45) NOT NULL,
-                    product_code varchar(45) NOT NULL,
                     product_category varchar(45) NOT NULL,
-                    product_is_deleted boolean NOT NULL
+                    product_is_deleted boolean NOT NULL DEFAULT false
                 );
             ''')
 
@@ -54,17 +57,17 @@ class DB:
 
     def get_product(
         self,
-        name: str,
+        id: int,
         with_deleted: bool = False
     ) -> dict:
         res = self.execute(f'''
-            SELECT * FROM {ITEMS_TABLE_NAME}
-            WHERE product_name = '{name}'
+            SELECT * FROM {PRODUCTS_TABLE_NAME}
+            WHERE product_id = '{id}'
             LIMIT 1;
         ''', return_results=True)
         if res is None:
             return {}
-        return Product(*res[0][1:]).to_dict()
+        return Product(*res[0]).to_dict()
 
     def get_products(
         self,
@@ -72,7 +75,7 @@ class DB:
         offset: int = None,
         count: int = None,
         with_deleted: bool = False
-    ) -> list:
+    ) -> dict:
 
         res = None
 
@@ -85,42 +88,46 @@ class DB:
             pagination = f'\nLIMIT {count} OFFSET {offset}\n'
 
         res = self.execute(
-            f'''SELECT * FROM {ITEMS_TABLE_NAME}''' +
+            f'''SELECT * FROM {PRODUCTS_TABLE_NAME}''' +
                 deleted_query +
                 pagination + ';',
             return_results=True
         )
 
-        return [Product(*(i[1:])).to_dict() for i in res]  # drop id column
+        products_count = self.execute(
+            f'''SELECT count(*) FROM {PRODUCTS_TABLE_NAME}''' +
+                deleted_query + ';',
+            return_results=True
+        )
 
-    def add_product(self, product: Product) -> dict:
+        return {'products': [Product(*i).to_dict() for i in res], 'count': products_count[0][0]}
+
+    def add_product(self, name: str, category: str) -> dict:
         self.execute(f'''
-            INSERT INTO {ITEMS_TABLE_NAME}
-            (product_name, product_code, product_category, product_is_deleted)
-            VALUES ('{product.name}', '{product.code}', '{product.category}', false);
+            INSERT INTO {PRODUCTS_TABLE_NAME}
+            (product_name, product_category, product_is_deleted)
+            VALUES ('{name}', '{category}', false);
         ''')
 
-    def delete_product(self, name: str) -> None:
+    def delete_product(self, id: int) -> None:
         self.execute(f'''
-            UPDATE {ITEMS_TABLE_NAME}
+            UPDATE {PRODUCTS_TABLE_NAME}
             SET product_is_deleted = true
-            WHERE product_name = '{name}';
+            WHERE product_id = '{id}';
         ''')
 
     def edit_product(self, product: Product) -> None:
         self.execute(f'''
-            UPDATE {ITEMS_TABLE_NAME}
+            UPDATE {PRODUCTS_TABLE_NAME}
             SET product_is_deleted = false,
-                product_code = {product.code},
-                product_category = {product.category}
-            WHERE product_name = '{product.name}';
+                product_name = '{product.name}',
+                product_category = '{product.category}'
+            WHERE product_id = '{product.id}';
         ''')
 
-    def exist_product(self, name: str) -> bool:
+    def exist_product(self, id: int) -> bool:
         res = self.execute(f'''
-            SELECT * FROM {ITEMS_TABLE_NAME}
-            WHERE product_name = '{name}';
+            SELECT * FROM {PRODUCTS_TABLE_NAME}
+            WHERE product_id = '{id}';
         ''', return_results=True)
-        print(res, name, file=sys.stderr)
         return res is not None
-
